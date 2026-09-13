@@ -4,6 +4,11 @@ terraform {
   }
   
   required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "6.63.0"
+    }
+    
     helm = {
       source = "hashicorp/helm"
       version = "3.2.0"
@@ -44,4 +49,8 @@ provider "vultr" {
   
   rate_limit = 100
   retry_limit = 3
+}
+
+provider "aws" {
+  profile = "morakedev"
 }

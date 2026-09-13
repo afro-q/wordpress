@@ -85,11 +85,107 @@ resource "helm_release" "wordpress" {
       value = kubernetes_persistent_volume_claim_v1.wordpress.metadata[0].name
     },
   ]
-
+    
   set_sensitive = [
     {
       name  = "externalDatabase.password"
       value = random_password.wordpress_db_password.result
     },
   ]
+
+  // going to manage ingress ourselves
+  values = [
+    yamlencode({
+      ingress = {
+        enabled   = false
+      }
+    })
+  ]  
+}
+
+resource "kubernetes_service_v1" "ts_wordpress" {
+  provider = kubernetes.vultr
+  
+  metadata {
+    name      = "ts-wordpress"
+    namespace = kubernetes_namespace_v1.wordpress.metadata[0].name
+
+    annotations = {
+      "tailscale.com/expose" = "true"
+    }
+  }
+
+  spec {
+    load_balancer_class = "tailscale"
+    type                = "LoadBalancer"
+
+    selector = {
+      "app.kubernetes.io/name" = "wordpress"
+    }
+
+    port {
+      name        = "http"
+      port        = 80
+      target_port = 8000
+      protocol    = "TCP"
+    }
+  }
+}
+
+resource "kubernetes_ingress_v1" "wordpress" {
+  provider = kubernetes.vultr
+  
+  metadata {
+    name      = "wordpress"
+    namespace = kubernetes_namespace_v1.wordpress.metadata[0].name
+
+    annotations = {
+      "cert-manager.io/cluster-issuer" = "letsencrypt-prod"
+    }
+  }
+
+  spec {    
+    ingress_class_name = "nginx"
+
+    rule {
+      host = "qmorake.com"
+      http {        
+        path {
+          path = "/"
+          
+          backend {
+            service {
+              name = "wordpress"
+              port {
+                number = 80
+              }
+            }
+          }
+        }
+      }
+    }
+
+    rule {
+      host = "www.qmorake.com"
+      http {        
+        path {
+          path = "/"
+          
+          backend {
+            service {
+              name = "wordpress"
+              port {
+                number = 80
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    tls {
+      secret_name = "wordpress-tls"
+      hosts      = [ "qmorake.com", "www.qmorake.com" ]
+    }
+  }
 }
