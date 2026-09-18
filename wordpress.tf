@@ -96,11 +96,28 @@ resource "helm_release" "wordpress" {
   // going to manage ingress ourselves
   values = [
     yamlencode({
+      # RWO block storage cannot attach to two nodes during a rolling update.
+      strategy = {
+        type = "Recreate"
+      }
       ingress = {
-        enabled   = false
+        enabled = false
+      }
+      settings = {
+        # Injected into wp-config.php via WORDPRESS_CONFIG_EXTRA (eval'd by the official image).
+        configExtra = join("\n", [
+          "if (!defined('WP_ALLOW_MULTISITE')) { define('WP_ALLOW_MULTISITE', true); }",
+          "if (!defined('MULTISITE')) { define('MULTISITE', true); }",
+          "if (!defined('SUBDOMAIN_INSTALL')) { define('SUBDOMAIN_INSTALL', ${var.wordpress_multisite_subdomains}); }",
+          "if (!isset($base)) { $base = '/'; }",
+          "if (!defined('DOMAIN_CURRENT_SITE')) { define('DOMAIN_CURRENT_SITE', '${var.wordpress_domain}'); }",
+          "if (!defined('PATH_CURRENT_SITE')) { define('PATH_CURRENT_SITE', '/'); }",
+          "if (!defined('SITE_ID_CURRENT_SITE')) { define('SITE_ID_CURRENT_SITE', 1); }",
+          "if (!defined('BLOG_ID_CURRENT_SITE')) { define('BLOG_ID_CURRENT_SITE', 1); }",
+        ])
       }
     })
-  ]  
+  ]
 }
 
 resource "kubernetes_service_v1" "ts_wordpress" {
@@ -144,20 +161,23 @@ resource "kubernetes_ingress_v1" "wordpress" {
     }
   }
 
-  spec {    
+  spec {
     ingress_class_name = "nginx"
 
-    rule {
-      host = "qmorake.com"
-      http {        
-        path {
-          path = "/"
-          
-          backend {
-            service {
-              name = "wordpress"
-              port {
-                number = 80
+    dynamic "rule" {
+      for_each = local.wordpress_hosts
+      content {
+        host = rule.value
+        http {
+          path {
+            path = "/"
+
+            backend {
+              service {
+                name = "wordpress"
+                port {
+                  number = 80
+                }
               }
             }
           }
@@ -165,27 +185,12 @@ resource "kubernetes_ingress_v1" "wordpress" {
       }
     }
 
-    rule {
-      host = "www.qmorake.com"
-      http {        
-        path {
-          path = "/"
-          
-          backend {
-            service {
-              name = "wordpress"
-              port {
-                number = 80
-              }
-            }
-          }
-        }
+    dynamic "tls" {
+      for_each = local.wordpress_tls
+      content {
+        secret_name = tls.value.secret_name
+        hosts       = tls.value.hosts
       }
-    }
-    
-    tls {
-      secret_name = "wordpress-tls"
-      hosts      = [ "qmorake.com", "www.qmorake.com" ]
     }
   }
 }
