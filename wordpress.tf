@@ -53,7 +53,7 @@ resource "helm_release" "wordpress" {
   name       = "wordpress"
   repository = "https://groundhog2k.github.io/helm-charts/"
   chart      = "wordpress"
-  version    = "0.16.4"
+  version    = "0.16.7"
 
   timeout         = 600
   cleanup_on_fail = true
@@ -96,6 +96,11 @@ resource "helm_release" "wordpress" {
   // going to manage ingress ourselves
   values = [
     yamlencode({
+      # The chart defaults to appVersion "7.1.3-apache", which ships PHP 8.3.
+      # Pin the PHP 8.4 build of the same WordPress release instead.
+      image = {
+        tag = "7.1.3-php8.4-apache"
+      }
       # RWO block storage cannot attach to two nodes during a rolling update.
       strategy = {
         type = "Recreate"
