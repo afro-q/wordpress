@@ -111,8 +111,19 @@ contact email. Fill those per competition:
 4. For **streams**: look for a YouTube/Vimeo channel with past finals.
 5. Update the draft's meta (re-run the import with the enriched JSON, or edit in wp-admin).
 
-This is the part to refine per-run; it is the main remaining work after the deterministic
-scrape above.
+**Parallelise with subagents.** The enrichment fans out well: split the queue (each entry is
+`{"t": title, "u": official_url}`) into ~13-item slices, and give each subagent a slice with a
+fixed output contract (a JSON array of `{title, rounds, rules_url, contact_name, contact_email,
+prior_editions, streams}` written to a per-slice file). Merge the result files back onto the
+full import records (match by normalised title) and re-run `import-competitions.php`. Budget
+~3 `web_fetch` calls per competition.
+
+**Data-availability reality** (observed on ~65 competitions): a large share of these sites are
+Wix/Squarespace/JS-only or Cloudflare-protected, so plain `web_fetch` returns an empty body.
+Workarounds that recovered data: reading HTML `<meta>`/embedded JSON, and third-party listings
+(WFIMC, aggregators, the musicalchairs description). Some competitions simply publish no public
+email. Expect ~2/3 email coverage and ~3/4 rounds coverage on a typical pass, and leave the rest
+as empty strings rather than guessing.
 
 ## 6. Pitfalls
 
