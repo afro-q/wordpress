@@ -448,12 +448,12 @@ function ccomp_markup(): string
 
     return sprintf(
         '<div class="comp-cal">
+            <div id="competition-calendar" class="comp-cal__grid"></div>
             <div class="comp-cal__bar">
                 <a class="comp-cal__btn" href="%1$s" title="Subscribe in your calendar app">&#65291; Add to your calendar</a>
                 <span class="comp-cal__note">Subscribe once and it updates automatically. To add it in Google Calendar, Apple Calendar or Outlook, paste this address as a calendar subscription:</span>
                 <code class="comp-cal__url"><a href="%2$s">%3$s</a></code>
             </div>
-            <div id="competition-calendar" class="comp-cal__grid"></div>
         </div>',
         esc_url($webcal),
         esc_url($ical),
