@@ -402,8 +402,11 @@ document.addEventListener('DOMContentLoaded', function () {
     var el = document.getElementById('competition-calendar');
     if (!el) return;
 
+    // FullCalendar v6 global bundles auto-register themselves on
+    // FullCalendar.globalPlugins when the daygrid/list scripts load, so the
+    // `plugins` option must be omitted (passing the module globals throws
+    // "e is not iterable").
     var calendar = new FullCalendar.Calendar(el, {
-        plugins: [FullCalendar.DayGrid, FullCalendar.List],
         initialView: 'dayGridMonth',
         firstDay: 1,
         height: 'auto',
