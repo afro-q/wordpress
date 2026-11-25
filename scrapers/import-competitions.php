@@ -33,6 +33,7 @@ if (!is_array($records)) {
 $created = 0;
 $updated = 0;
 $skipped = 0;
+$ignored = 0;
 
 foreach ($records as $record) {
     $title = trim((string) ($record['title'] ?? ''));
@@ -64,6 +65,13 @@ foreach ($records as $record) {
         }
     }
 
+    // Skip competitions that have been marked as ignored.
+    if ($existing_id && get_post_meta($existing_id, '_competition_ignored', true)) {
+        $ignored++;
+        echo "  SKIP (ignored) {$title}\n";
+        continue;
+    }
+
     $id = ccomp_upsert_competition($record, 'draft');
     if ($id <= 0) {
         $skipped++;
@@ -75,12 +83,13 @@ foreach ($records as $record) {
     echo sprintf("  %s post %d  %s\n", $existing_id ? 'UPD' : 'NEW', $id, $title);
 
     // Throttle so a full re-run does not trip the pod's liveness probe.
-    usleep(150000);
+    usleep(300000);
 }
 
 printf(
-    "DONE: created=%d updated=%d skipped=%d\n",
+    "DONE: created=%d updated=%d skipped=%d ignored=%d\n",
     $created,
     $updated,
-    $skipped
+    $skipped,
+    $ignored
 );

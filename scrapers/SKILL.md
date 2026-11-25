@@ -94,9 +94,13 @@ Dedupe key: `_competition_source_url` (the musicalchairs detail URL), then the p
 | `_competition_prior_editions` | historical record / prior editions |
 | `_competition_streams` | previous-edition stream links |
 | `_competition_source`, `_competition_source_url` | provenance |
+| `_competition_ignored` | `'1'` when ignored (skipped on re-import) |
+| `_competition_ignored_reason` | free-text reason for ignoring |
 
 `ccomp_upsert_competition()` (in the plugin) also writes a human-readable summary into
-`post_content` so drafts are easy to review in wp-admin.
+`post_content` so drafts are easy to review in wp-admin. It will **not** re-import a post
+whose `_competition_ignored` is set — mark a competition as "Ignored" (with a reason) in
+wp-admin and future imports leave it untouched. To re-enable it, uncheck "Ignored" and save.
 
 ## 5. Enrichment (the per-competition step)
 

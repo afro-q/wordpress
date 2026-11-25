@@ -125,6 +125,8 @@ function ccomp_meta_box(WP_Post $post): void
     $prior        = (string) get_post_meta($post->ID, '_competition_prior_editions', true);
     $streams      = (string) get_post_meta($post->ID, '_competition_streams', true);
     $source       = (string) get_post_meta($post->ID, '_competition_source', true);
+    $ignored      = (string) get_post_meta($post->ID, '_competition_ignored', true);
+    $ignored_reason = (string) get_post_meta($post->ID, '_competition_ignored_reason', true);
     ?>
     <p>
         <label for="ccomp_start"><strong>Start date</strong></label><br />
@@ -177,6 +179,13 @@ function ccomp_meta_box(WP_Post $post): void
     <p>
         <label for="ccomp_source"><strong>Source</strong></label><br />
         <input type="text" id="ccomp_source" name="ccomp_source" value="<?php echo esc_attr($source); ?>" class="large-text" placeholder="e.g. musicalchairs.info/competitions/1234" />
+    </p>
+    <p>
+        <label for="ccomp_ignored"><input type="checkbox" id="ccomp_ignored" name="ccomp_ignored" value="1" <?php checked($ignored, '1'); ?> /> <strong>Ignored</strong> <span class="description">(mark so future imports skip this competition)</span></label>
+    </p>
+    <p>
+        <label for="ccomp_ignored_reason"><strong>Reason for ignoring</strong></label><br />
+        <textarea id="ccomp_ignored_reason" name="ccomp_ignored_reason" rows="2" class="large-text" placeholder="e.g. not a piano competition / discontinued / duplicate"><?php echo esc_textarea($ignored_reason); ?></textarea>
     </p>
     <?php
 }
@@ -243,6 +252,15 @@ add_action('save_post_' . CCOMP_POST_TYPE, static function (int $post_id): void 
     foreach ($areas as $key => $field) {
         update_post_meta($post_id, $key, sanitize_textarea_field(wp_unslash($_POST[$field] ?? '')));
     }
+
+    // Ignored flag + reason.
+    $ignored = (isset($_POST['ccomp_ignored']) && '1' === $_POST['ccomp_ignored']) ? '1' : '';
+    if ($ignored !== '') {
+        update_post_meta($post_id, '_competition_ignored', '1');
+    } else {
+        delete_post_meta($post_id, '_competition_ignored');
+    }
+    update_post_meta($post_id, '_competition_ignored_reason', sanitize_textarea_field(wp_unslash($_POST['ccomp_ignored_reason'] ?? '')));
 });
 
 /* ------------------------------------------------------- admin list view */
@@ -253,6 +271,7 @@ add_filter('manage_' . CCOMP_POST_TYPE . '_posts_columns', static function (arra
         if ($key === 'date') {
             $out['ccomp_dates']    = 'Dates';
             $out['ccomp_location'] = 'Location';
+            $out['ccomp_ignored']  = 'Ignored';
         }
         $out[$key] = $label;
     }
@@ -276,6 +295,15 @@ add_action('manage_' . CCOMP_POST_TYPE . '_posts_custom_column', static function
     if ($column === 'ccomp_location') {
         $location = trim((string) get_post_meta($post_id, '_competition_location', true));
         echo $location !== '' ? esc_html($location) : '—';
+    }
+
+    if ($column === 'ccomp_ignored') {
+        if (get_post_meta($post_id, '_competition_ignored', true)) {
+            $reason = (string) get_post_meta($post_id, '_competition_ignored_reason', true);
+            echo '<span style="color:#b32d2e;" title="' . esc_attr($reason) . '">Ignored</span>';
+        } else {
+            echo '—';
+        }
     }
 }, 10, 2);
 
@@ -340,6 +368,10 @@ function ccomp_build_summary(array $data): string
     if (!empty($data['streams'])) {
         $lines[] = "Previous-edition streams:\n" . trim((string) $data['streams']);
     }
+    if (!empty($data['ignored'])) {
+        $reason = trim((string) ($data['ignored_reason'] ?? ''));
+        $lines[] = 'IGNORED' . ($reason !== '' ? ': ' . $reason : '');
+    }
 
     return implode("\n\n", $lines);
 }
@@ -349,7 +381,10 @@ function ccomp_build_summary(array $data): string
  * Re-runnable: dedupes on the source URL first, then on the slug.
  *
  * Expected keys: title, start, end, deadline, location, url, rules_url, rounds,
- * contact_name, contact_email, prior_editions, streams, source, source_url.
+ * contact_name, contact_email, prior_editions, streams, source, source_url,
+ * ignored (0/1), ignored_reason.
+ *
+ * A competition already marked `ignored` is returned unchanged (not re-imported).
  */
 function ccomp_upsert_competition(array $data, string $status = 'draft'): int
 {
@@ -379,6 +414,11 @@ function ccomp_upsert_competition(array $data, string $status = 'draft'): int
         if ($existing) {
             $existing_id = (int) $existing->ID;
         }
+    }
+
+    // Do not re-import a competition that has been marked as ignored.
+    if ($existing_id && get_post_meta($existing_id, '_competition_ignored', true)) {
+        return $existing_id;
     }
 
     $post_id = wp_insert_post(wp_slash([
@@ -434,6 +474,12 @@ function ccomp_upsert_competition(array $data, string $status = 'draft'): int
         $value = trim((string) ($data[$field] ?? ''));
         $value !== '' ? update_post_meta($post_id, $key, $value) : delete_post_meta($post_id, $key);
     }
+
+    $ignored = !empty($data['ignored']) ? '1' : '';
+    $ignored !== '' ? update_post_meta($post_id, '_competition_ignored', '1') : delete_post_meta($post_id, '_competition_ignored');
+
+    $ignored_reason = trim((string) ($data['ignored_reason'] ?? ''));
+    $ignored_reason !== '' ? update_post_meta($post_id, '_competition_ignored_reason', $ignored_reason) : delete_post_meta($post_id, '_competition_ignored_reason');
 
     return $post_id;
 }
