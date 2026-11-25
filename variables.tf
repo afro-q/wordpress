@@ -21,5 +21,5 @@ variable "wordpress_multisite_subdomains" {
 variable "wordpress_additional_domains" {
   description = "Apex domains mapped to their own Multisite blogs (not the primary site). Each needs a public Route53 zone."
   type        = list(string)
-  default     = ["equinilet.com"]
+  default     = ["equinilet.com", "myemailsecretary.com"]
 }
